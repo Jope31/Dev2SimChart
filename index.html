@@ -359,6 +359,20 @@
                 if (performanceChart) {
                     performanceChart.destroy(); // Clear previous chart
                 }
+
+                // Define a plugin to draw a background color before the chart is rendered
+                const customCanvasBackgroundColor = {
+                    id: 'customCanvasBackgroundColor',
+                    beforeDraw: (chart, args, options) => {
+                        const {ctx} = chart;
+                        ctx.save();
+                        ctx.globalCompositeOperation = 'destination-over';
+                        ctx.fillStyle = options.color || '#ffffff';
+                        ctx.fillRect(0, 0, chart.width, chart.height);
+                        ctx.restore();
+                    }
+                };
+
                 performanceChart = new Chart(chartCanvas, {
                     type: 'line',
                     data: {
@@ -368,6 +382,10 @@
                     options: {
                         responsive: true,
                         plugins: {
+                            // Configure the custom plugin
+                            customCanvasBackgroundColor: {
+                                color: 'white'
+                            },
                             legend: {
                                 position: 'top',
                             },
@@ -409,7 +427,9 @@
                                 }
                             }
                         }
-                    }
+                    },
+                    // Register the plugin globally for this chart instance
+                    plugins: [customCanvasBackgroundColor]
                 });
                 logStatus('Chart rendered successfully!', 'success');
             } else {
@@ -421,6 +441,7 @@
             buttonText.textContent = 'Fetch and Chart Data';
             loader.classList.add('hidden');
         }
+
 
         /**
          * Handles downloading the chart as a PNG image.
@@ -450,6 +471,7 @@
         // --- Event Listeners ---
         fetchButton.addEventListener('click', handleFetchAndChart);
         downloadChartBtn.addEventListener('click', handleDownloadChart);
+
     </script>
 
 </body>

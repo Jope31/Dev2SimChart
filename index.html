@@ -62,8 +62,8 @@
                     <input type="text" id="accountId" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm" placeholder="Enter your Account ID">
                 </div>
                 <div>
-                    <label for="symphonies" class="block text-sm font-medium text-gray-700">Symphonies (ID,YYYY-MM-DD)</label>
-                    <textarea id="symphonies" rows="5" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm" placeholder="One symphony per line, e.g.&#10;FTZP9wjzjvnIw21KQtIL,2025-08-01&#10;anotherSymphonyID,2025-07-15"></textarea>
+                    <label for="symphonies" class="block text-sm font-medium text-gray-700">Symphonies (Name,ID,YYYY-MM-DD)</label>
+                    <textarea id="symphonies" rows="5" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm" placeholder="One symphony per line, e.g.&#10;My Awesome Symphony,FTZP9wjzjvnIw21KQtIL,2025-08-01&#10;Another Symphony,anotherSymphonyID,2025-07-15"></textarea>
                 </div>
                 <button id="fetchButton" class="w-full bg-indigo-600 text-white font-bold py-2 px-4 rounded-lg hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 transition duration-150 ease-in-out flex items-center justify-center">
                     <span id="buttonText">Fetch and Chart Data</span>
@@ -145,14 +145,14 @@
         async function fetchBacktestData(apiKey, secretKey, symphonyId, startDate) {
             const url = `${BACKTEST_API_BASE}/public/symphonies/${symphonyId}/backtest`;
             logStatus(`Fetching Backtest data for ${symphonyId}...`);
-            
+
             const headers = {
                 "Authorization": `Bearer ${secretKey}`,
                 "x-api-key-id": apiKey,
                 "x-origin": "public-api",
                 "Content-Type": "application/json"
             };
-            
+
             const payload = {
                 capital: 10000,
                 start_date: startDate,
@@ -183,7 +183,7 @@
                 return null;
             }
         }
-        
+
         /**
          * Fetches live portfolio history for a single symphony.
          * @param {string} apiKey - The user's API key.
@@ -252,7 +252,7 @@
             if (backtestData && backtestData.dvm_capital && backtestData.dvm_capital[symphonyId]) {
                 const symphonyTimeseries = backtestData.dvm_capital[symphonyId];
                 const backtestBaseline = 10000; // As per the python script
-                
+
                 for (const dayKey in symphonyTimeseries) {
                     const dateObj = new Date(1970, 0, 1);
                     dateObj.setDate(dateObj.getDate() + parseInt(dayKey) + 1); // Adjust for timezone offset from UTC
@@ -264,7 +264,7 @@
                     }
                 }
             }
-            
+
             return mergedData;
         }
 
@@ -288,15 +288,15 @@
                 .filter(line => line)
                 .map(line => {
                     const parts = line.split(',');
-                    if (parts.length !== 2 || !parts[0].trim() || !parts[1].trim()) {
+                    if (parts.length !== 3 || !parts[0].trim() || !parts[1].trim() || !parts[2].trim()) {
                         return null;
                     }
-                    return { id: parts[0].trim(), startDate: parts[1].trim() };
+                    return { name: parts[0].trim(), id: parts[1].trim(), startDate: parts[2].trim() };
                 })
                 .filter(Boolean); // Remove any null entries
 
             if (symphonyInputs.length === 0) {
-                logStatus("Invalid symphony format. Use: SymphonyID,YYYY-MM-DD", 'error');
+                logStatus("Invalid symphony format. Use: Name,SymphonyID,YYYY-MM-DD", 'error');
                 return;
             }
 
@@ -309,7 +309,7 @@
             // --- 3. Fetch and Process Data for all Symphonies ---
             const allChartData = [];
             for (const symphony of symphonyInputs) {
-                logStatus(`--- Processing Symphony: ${symphony.id} ---`, 'info');
+                logStatus(`--- Processing Symphony: ${symphony.name} (${symphony.id}) ---`, 'info');
                 const liveData = await fetchLiveData(apiKey, secretKey, accountId, symphony.id);
                 const backtestData = await fetchBacktestData(apiKey, secretKey, symphony.id, symphony.startDate);
 
@@ -317,6 +317,7 @@
                     const processedData = processAndMergeData(liveData, backtestData, symphony.id, symphony.startDate);
                     allChartData.push({
                         symphonyId: symphony.id,
+                        name: symphony.name,
                         data: processedData
                     });
                 } else {
@@ -329,10 +330,10 @@
                 const allDates = [...new Set(allChartData.flatMap(d => Object.keys(d.data)))].sort();
                 const datasets = [];
 
-                allChartData.forEach(({ symphonyId, data }) => {
+                allChartData.forEach(({ name, data }) => {
                     // Live Data Series
                     datasets.push({
-                        label: `${symphonyId} - Live`,
+                        label: `${name} - Live`,
                         data: allDates.map(date => data[date] ? data[date].live_pct * 100 : null),
                         borderColor: 'blue',
                         backgroundColor: 'rgba(0, 0, 255, 0.1)',
@@ -344,7 +345,7 @@
 
                     // Backtest Data Series
                     datasets.push({
-                        label: `${symphonyId} - Backtest`,
+                        label: `${name} - Backtest`,
                         data: allDates.map(date => data[date] ? data[date].backtest_pct * 100 : null),
                         borderColor: 'orange',
                         backgroundColor: 'rgba(255, 165, 0, 0.1)',
@@ -476,15 +477,3 @@
 
 </body>
 </html>
-```
-
-### Important Next Step
-
-The first time you use this updated version, you will likely need to "activate" the proxy for your browser session.
-
-1.  Open a new browser tab.
-2.  Go to this URL: [https://cors-anywhere.herokuapp.com/](https://cors-anywhere.herokuapp.com/)
-3.  Click the button on that page that says **"Request temporary access to the demo server"**.
-
-
-After doing that, return to your `index.html` page and try running the tool again. It should now be able to fetch the backtest data successful

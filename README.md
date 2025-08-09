@@ -4,19 +4,20 @@ A simple, self-contained HTML-based tool for visualizing and comparing the perfo
 
 ✨ **Features**
 
-⦁	Live vs. Backtest Comparison: Directly overlays live performance (blue line) against backtest performance (orange line).
-⦁	Multiple Symphonies: Chart as many symphonies as you need on a single graph.
-⦁	Dynamic Date Ranges: Specify a unique start date for each symphony.
-⦁	No Installation Needed: Runs entirely in your web browser from a single index.html file.
-⦁	Interactive Charts: Hover over data points to see specific return percentages.
+⦁	Live vs. Backtest Comparison: Directly overlays live performance (blue line) against backtest performance (orange line).<br>
+⦁	Multiple Symphonies: Chart as many symphonies as you need on a single graph.<br>
+⦁	Dynamic Date Ranges: Specify a unique start date for each symphony.<br>
+⦁	No Installation Needed: Runs entirely in your web browser from a single index.html file.<br>
+⦁	Interactive Charts: Hover over data points to see specific return percentages.<br>
 
 🚀 **How It Works**
 
-This tool is a single HTML file that uses JavaScript to call the official Composer API endpoints.
-⦁	Frontend: Plain HTML styled with Tailwind CSS.
-⦁	Charting: Uses Chart.js to render the interactive line graphs.
-⦁	API Communication: Makes direct fetch requests to the Composer API to get live and backtest data.
-⦁	CORS Handling: Uses a public CORS proxy (cors-anywhere.herokuapp.com) to bypass browser security restrictions during local development. This is necessary because the Composer backtest API does not currently allow requests directly from a browser.
+This tool is a single HTML file that uses JavaScript to call the official Composer API endpoints.<br>
+
+⦁	Frontend: Plain HTML styled with Tailwind CSS.<br>
+⦁	Charting: Uses Chart.js to render the interactive line graphs.<br>
+⦁	API Communication: Makes direct fetch requests to the Composer API to get live and backtest data.<br>
+⦁	CORS Handling: Uses a public CORS proxy (cors-anywhere.herokuapp.com) to bypass browser security restrictions during local development. This is necessary because the Composer backtest API does not currently allow requests directly from a browser.<br>
 
 🛠️ **Setup and Installation**
 

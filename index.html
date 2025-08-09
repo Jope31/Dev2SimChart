@@ -111,7 +111,7 @@
         // --- API Base URLs ---
         // Using a CORS proxy to bypass browser security restrictions for local development.
         // You may need to visit the proxy URL and click a button to activate it for your session.
-        const CORS_PROXY = "https://cors-anywhere.herokuapp.com/";
+        const CORS_PROXY = "http://localhost:8080/";
         const BACKTEST_API_BASE = CORS_PROXY + "https://backtest-api.composer.trade/api/v2";
         const LIVE_API_BASE = CORS_PROXY + "https://stagehand-api.composer.trade/api/v1";
 
@@ -442,6 +442,7 @@
             loader.classList.add('hidden');
         }
 
+
         /**
          * Handles downloading the chart as a PNG image.
          */
@@ -470,6 +471,7 @@
         // --- Event Listeners ---
         fetchButton.addEventListener('click', handleFetchAndChart);
         downloadChartBtn.addEventListener('click', handleDownloadChart);
+
     </script>
 
 </body>
@@ -483,5 +485,6 @@ The first time you use this updated version, you will likely need to "activate" 
 1.  Open a new browser tab.
 2.  Go to this URL: [https://cors-anywhere.herokuapp.com/](https://cors-anywhere.herokuapp.com/)
 3.  Click the button on that page that says **"Request temporary access to the demo server"**.
+
 
 After doing that, return to your `index.html` page and try running the tool again. It should now be able to fetch the backtest data successful

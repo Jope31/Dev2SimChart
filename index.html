@@ -200,7 +200,7 @@
 
         <!-- Z-Score Ranking Section -->
         <div class="mt-8">
-            <h2 class="text-xl font-semibold mb-4">Z-Score Ranking</h2>
+            <h2 class="text-xl font-semibold mb-4">Daily P&L Z-Score Ranking</h2>
             <div id="zScoreRanking" class="p-4 rounded-lg bg-gray-50 dark:bg-gray-800">
                 <!-- Z-score results will be injected here -->
             </div>
@@ -411,13 +411,18 @@
         /**
          * Calculates the mean and standard deviation of an array of numbers.
          * @param {number[]} data - Array of numbers.
+         * @param {number} ddof - Delta Degrees of Freedom. Use 1 for sample std dev.
          * @returns {{mean: number, stdDev: number}}
          */
-        function calculateStatistics(data) {
+        function calculateStatistics(data, ddof = 0) {
             if (data.length === 0) return { mean: 0, stdDev: 0 };
+            const n = data.length;
             const sum = data.reduce((acc, val) => acc + val, 0);
-            const mean = sum / data.length;
-            const variance = data.reduce((acc, val) => acc + Math.pow(val - mean, 2), 0) / data.length;
+            const mean = sum / n;
+
+            if (n - ddof <= 0) return { mean, stdDev: 0 };
+
+            const variance = data.reduce((acc, val) => acc + Math.pow(val - mean, 2), 0) / (n - ddof);
             const stdDev = Math.sqrt(variance);
             return { mean, stdDev };
         }
@@ -461,6 +466,28 @@
                 }
             }
             return returns;
+        }
+
+        /**
+         * Calculates the daily Profit & Loss (P&L) from an equity curve.
+         * @param {object} timeseries - Object with date strings as keys and equity values.
+         * @returns {number[]} - An array of daily P&L values.
+         */
+        function calculateDailyPnl(timeseries) {
+            const sortedPoints = Object.keys(timeseries)
+                .map(date => ({ date: new Date(date), value: timeseries[date] }))
+                .sort((a, b) => a.date - b.date);
+
+            if (sortedPoints.length < 2) {
+                return [];
+            }
+
+            const dailyPnls = [];
+            for (let i = 1; i < sortedPoints.length; i++) {
+                const pnl = sortedPoints[i].value - sortedPoints[i - 1].value;
+                dailyPnls.push(pnl);
+            }
+            return dailyPnls;
         }
 
         // --- API Base URLs ---
@@ -683,55 +710,44 @@
                     logStatus(`Calculating Z-Score for ${symphony.name}...`);
                     let zScore = null;
 
-                    if (liveData && liveData.epoch_ms && liveData.epoch_ms.length > 1) {
+                    if (liveData && liveData.deposit_adjusted_series && liveData.deposit_adjusted_series.length >= 2) {
                         const livePoints = liveData.epoch_ms.map((ms, i) => ({
                             ms: ms,
                             value: liveData.deposit_adjusted_series[i]
                         })).sort((a, b) => a.ms - b.ms);
 
-                        const firstPoint = livePoints[0];
-                        const lastPoint = livePoints[livePoints.length - 1];
-                        const liveDurationDays = Math.round((lastPoint.ms - firstPoint.ms) / (1000 * 60 * 60 * 24));
+                        const latestLivePnl = livePoints[livePoints.length - 1].value - livePoints[livePoints.length - 2].value;
+                        logStatus(`Latest Live P&L for ${symphony.name}: $${latestLivePnl.toFixed(2)}`);
 
-                        if (liveDurationDays > 0 && firstPoint.value > 0) {
-                            const x = (lastPoint.value / firstPoint.value) - 1; // Total live return
-                            logStatus(`Live duration for ${symphony.name}: ${liveDurationDays} days, Total Return: ${(x*100).toFixed(2)}%`);
+                        if (backtestData && backtestData.dvm_capital && backtestData.dvm_capital[symphony.id]) {
+                            const backtestTimeseries = backtestData.dvm_capital[symphony.id];
+                            const backtestEquityCurve = {};
+                            for (const dayKey in backtestTimeseries) {
+                                const dateObj = new Date(1970, 0, 1);
+                                dateObj.setDate(dateObj.getDate() + parseInt(dayKey) + 1);
+                                const dateStr = dateObj.toISOString().split('T')[0];
+                                backtestEquityCurve[dateStr] = backtestTimeseries[dayKey];
+                            }
 
-                            if (backtestData && backtestData.dvm_capital && backtestData.dvm_capital[symphony.id]) {
-                                const liveStartDate = new Date(firstPoint.ms);
-                                const backtestTimeseries = backtestData.dvm_capital[symphony.id];
-                                const historicalEquityCurve = {};
-                                for (const dayKey in backtestTimeseries) {
-                                    const dateObj = new Date(1970, 0, 1);
-                                    dateObj.setDate(dateObj.getDate() + parseInt(dayKey) + 1);
-                                    // Only include backtest data from before the symphony went live
-                                    if (dateObj < liveStartDate) {
-                                        const dateStr = dateObj.toISOString().split('T')[0];
-                                        historicalEquityCurve[dateStr] = backtestTimeseries[dayKey];
-                                    }
-                                }
+                            const historicalDailyPnls = calculateDailyPnl(backtestEquityCurve);
 
-                                const historicalReturns = calculateRollingReturns(historicalEquityCurve, liveDurationDays);
-                                if (historicalReturns.length > 0) {
-                                    const { mean: mu, stdDev: sigma } = calculateStatistics(historicalReturns);
-                                    if (sigma > 0) {
-                                        zScore = (x - mu) / sigma;
-                                        logStatus(`-> Z-Score for ${symphony.name}: ${zScore.toFixed(2)} (μ: ${(mu*100).toFixed(2)}%, σ: ${(sigma*100).toFixed(2)}%)`, 'success');
-                                    } else {
-                                        logStatus(`Std Dev of historical returns is zero for ${symphony.name}. Cannot calculate Z-Score.`, 'warning');
-                                    }
+                            if (historicalDailyPnls.length > 1) {
+                                const { mean: mu, stdDev: sigma } = calculateStatistics(historicalDailyPnls, 1); // Use ddof=1 for sample std dev
+                                if (sigma > 0) {
+                                    zScore = (latestLivePnl - mu) / sigma;
+                                    logStatus(`-> Z-Score (Daily P&L): ${zScore.toFixed(2)} (Live P&L: $${latestLivePnl.toFixed(2)}, μ: $${mu.toFixed(2)}, σ: $${sigma.toFixed(2)})`, 'success');
                                 } else {
-                                    logStatus(`Could not calculate any historical rolling returns for a duration of ${liveDurationDays} days.`, 'warning');
+                                    logStatus(`Std Dev of historical daily P&L is zero for ${symphony.name}. Cannot calculate Z-Score.`, 'warning');
                                 }
                             } else {
-                                logStatus(`No backtest data available for ${symphony.name} to calculate Z-Score.`, 'warning');
+                                logStatus(`Not enough historical data points to calculate Daily P&L stats for ${symphony.name}.`, 'warning');
                             }
                         } else {
-                            logStatus(`Live duration is zero or initial value is zero for ${symphony.name}. Cannot calculate Z-Score.`, 'warning');
+                            logStatus(`No backtest data available for ${symphony.name} to calculate Z-Score.`, 'warning');
                         }
-                    } else {
-                        logStatus(`Not enough live data to calculate duration and return for ${symphony.name}.`, 'warning');
 
+                    } else {
+                        logStatus(`Not enough live data points for ${symphony.name} to calculate P&L.`, 'warning');
                     }
 
                     if (zScore !== null) {

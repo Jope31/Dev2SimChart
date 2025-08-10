@@ -4,12 +4,12 @@ A simple, self-contained HTML tool to visualize live and backtest performance fo
 
 ✨ **Features**
 
-⦁	Multi-Symphony Charting: Plot live and backtest data for multiple symphonies on a single graph.
-⦁	Clear Visual Comparison: Each symphony is assigned a unique color pair, with a dark shade for live data and a light shade for backtest data, making comparisons intuitive.
-⦁	Download Your Chart: Save the generated performance chart as a PNG file with a single click.
-⦁	Detailed Status Log: A comprehensive log provides real-time feedback on API requests, data processing, and potential errors.
-⦁	Custom Date Ranges: Specify a unique start date for each symphony to align backtests with your analysis needs.
-⦁	Fully Self-Contained: Runs entirely in your browser from a single HTML file—no installation needed.
+⦁	Multi-Symphony Charting: Plot live and backtest data for multiple symphonies on a single graph.<br>
+⦁	Clear Visual Comparison: Each symphony is assigned a unique color pair, with a dark shade for live data and a light shade for backtest data, making comparisons intuitive.<br>
+⦁	Download Your Chart: Save the generated performance chart as a PNG file with a single click.<br>
+⦁	Detailed Status Log: A comprehensive log provides real-time feedback on API requests, data processing, and potential errors.<br>
+⦁	Custom Date Ranges: Specify a unique start date for each symphony to align backtests with your analysis needs.<br>
+⦁	Fully Self-Contained: Runs entirely in your browser from a single HTML file—no installation needed.<br>
 
 🚀 **How It Works**
 

@@ -9,6 +9,7 @@ A simple, self-contained HTML tool to visualize live and backtest performance fo
 ⦁	Download Your Chart: Save the generated performance chart as a PNG file with a single click.<br>
 ⦁	Detailed Status Log: A comprehensive log provides real-time feedback on API requests, data processing, and potential errors.<br>
 ⦁	Custom Date Ranges: Specify a unique start date for each symphony to align backtests with your analysis needs.<br>
+⦁	**Daily P&L Z-Score Ranking**: Automatically calculates and displays a z-score for each symphony's most recent daily performance, ranking them by statistical deviation from their historical backtest.<br>
 ⦁	Fully Self-Contained: Runs entirely in your browser from a single HTML file—no installation needed.<br>
 
 🚀 **How It Works**
@@ -67,6 +68,29 @@ This tool requires two components to run locally: a local web server to serve th
 
 4.  **Download the Chart:**
     Click the "Download PNG" button to save a copy of the chart to your computer.
+
+# Z-Score Ranking
+
+Below the main performance chart, you will find the **Daily P&L Z-Score Ranking**. This section provides a powerful statistical snapshot of your symphonies' recent performance.
+
+### What is a Z-Score?
+A z-score measures how many standard deviations a data point is from the mean of a dataset. In this tool, it answers the question: **"How unusual was the most recent trading day's profit or loss compared to the symphony's own historical backtest?"**
+
+### How is it Calculated?
+For each symphony, the tool performs the following steps:
+1.  It takes the Profit & Loss (P&L) of the most recent live trading day.
+2.  It calculates the historical daily P&L for the entire duration of the backtest.
+3.  It finds the mean (average) and standard deviation (a measure of volatility) of these historical P&Ls.
+4.  Finally, it calculates the z-score using the formula:
+    `z = (Latest Daily P&L - Historical Mean P&L) / Historical Standard Deviation`
+
+### How to Interpret the Ranking
+The symphonies are ranked by their **absolute z-score**, from lowest to highest.
+- **Low Z-Score (close to 0):** The most recent day's performance was very typical and falls in line with historical norms.
+- **High Positive Z-Score (e.g., > 2.0):** The symphony had a significantly better-than-average day. This is a 2-sigma event, suggesting a positive but statistically unusual outcome.
+- **High Negative Z-Score (e.g., < -2.0):** The symphony had a significantly worse-than-average day. This is a negative 2-sigma event, indicating a large, unexpected loss compared to its history.
+
+This ranking helps you quickly identify which strategies are behaving as expected and which are experiencing outlier events that may warrant further investigation.
 
 ⚠️ Disclaimer
 This is an unofficial tool. It is not affiliated with, endorsed by, or supported by Composer.trade. The API keys and other sensitive information you provide are used solely for the purpose of making API calls to the Composer servers from your browser and are not stored or transmitted elsewhere. As this tool requires you to run a local web server and a CORS proxy, be aware of the security implications and only run it in a trusted environment.

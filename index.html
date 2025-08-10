@@ -423,40 +423,44 @@
         }
 
         /**
-         * Converts daily equity values to weekly percentage returns.
+         * Calculates rolling returns for a given duration.
          * @param {object} timeseries - Object with date strings as keys and equity values.
-         * @returns {number[]} - An array of weekly returns.
+         * @param {number} durationDays - The number of days for the rolling period.
+         * @returns {number[]} - An array of rolling returns.
          */
-        function calculateWeeklyReturns(timeseries) {
-            const sortedDates = Object.keys(timeseries).sort((a, b) => new Date(a) - new Date(b));
-            if (sortedDates.length < 2) return [];
+        function calculateRollingReturns(timeseries, durationDays) {
+            const sortedPoints = Object.keys(timeseries)
+                .map(date => ({ date: new Date(date), value: timeseries[date] }))
+                .sort((a, b) => a.date - b.date);
 
-            const weeklyReturns = [];
-            let lastEquity = timeseries[sortedDates[0]];
+            if (sortedPoints.length < 2 || durationDays <= 0) return [];
 
-            for (let i = 1; i < sortedDates.length; i++) {
-                const currentDate = new Date(sortedDates[i]);
-                const previousDate = new Date(sortedDates[i-1]);
+            const returns = [];
+            const durationMs = durationDays * 24 * 60 * 60 * 1000;
 
-                // Check if it's a new week (Sunday is 0, Saturday is 6)
-                const isNewWeek = currentDate.getDay() < previousDate.getDay() || (currentDate - previousDate) / (1000 * 60 * 60 * 24) >= 7;
+            for (let i = 0; i < sortedPoints.length; i++) {
+                const endDate = sortedPoints[i].date;
+                const endValue = sortedPoints[i].value;
+                const targetStartDate = new Date(endDate.getTime() - durationMs);
 
-                if (isNewWeek && lastEquity !== 0) {
-                    const currentEquity = timeseries[sortedDates[i-1]];
-                    const weeklyReturn = (currentEquity / lastEquity) - 1;
-                    weeklyReturns.push(weeklyReturn);
-                    lastEquity = currentEquity;
+                // Find the closest start point on or before the target start date
+                let startPoint = null;
+                for (let j = i; j >= 0; j--) {
+                    if (sortedPoints[j].date <= targetStartDate) {
+                        startPoint = sortedPoints[j];
+                        break;
+                    }
+                }
+
+                if (startPoint) {
+                    const startValue = startPoint.value;
+                    if (startValue !== 0) {
+                        const periodReturn = (endValue / startValue) - 1;
+                        returns.push(periodReturn);
+                    }
                 }
             }
-
-            // Add the final week's return
-            const finalEquity = timeseries[sortedDates[sortedDates.length - 1]];
-            if (lastEquity !== 0) {
-                const finalReturn = (finalEquity / lastEquity) - 1;
-                weeklyReturns.push(finalReturn);
-            }
-
-            return weeklyReturns;
+            return returns;
         }
 
         // --- API Base URLs ---
@@ -679,49 +683,51 @@
                     logStatus(`Calculating Z-Score for ${symphony.name}...`);
                     let zScore = null;
 
-                    if (backtestData && backtestData.dvm_capital && backtestData.dvm_capital[symphony.id]) {
-                        const backtestTimeseries = backtestData.dvm_capital[symphony.id];
-                        const backtestEquityCurve = {};
-                        for (const dayKey in backtestTimeseries) {
-                            const dateObj = new Date(1970, 0, 1);
-                            dateObj.setDate(dateObj.getDate() + parseInt(dayKey) + 1);
-                            const dateStr = dateObj.toISOString().split('T')[0];
-                            backtestEquityCurve[dateStr] = backtestTimeseries[dayKey];
-                        }
+                    if (liveData && liveData.epoch_ms && liveData.epoch_ms.length > 1) {
+                        const livePoints = liveData.epoch_ms.map((ms, i) => ({
+                            ms: ms,
+                            value: liveData.deposit_adjusted_series[i]
+                        })).sort((a, b) => a.ms - b.ms);
 
-                        const backtestWeeklyReturns = calculateWeeklyReturns(backtestEquityCurve);
+                        const firstPoint = livePoints[0];
+                        const lastPoint = livePoints[livePoints.length - 1];
+                        const liveDurationDays = Math.round((lastPoint.ms - firstPoint.ms) / (1000 * 60 * 60 * 24));
 
-                        if (backtestWeeklyReturns.length > 0) {
-                            const { mean: mu, stdDev: sigma } = calculateStatistics(backtestWeeklyReturns);
+                        if (liveDurationDays > 0 && firstPoint.value > 0) {
+                            const x = (lastPoint.value / firstPoint.value) - 1; // Total live return
+                            logStatus(`Live duration for ${symphony.name}: ${liveDurationDays} days, Total Return: ${(x*100).toFixed(2)}%`);
 
-                            if (liveData && liveData.epoch_ms && liveData.deposit_adjusted_series) {
-                                const liveEquityCurve = {};
-                                liveData.epoch_ms.forEach((ms, i) => {
-                                    const dateStr = new Date(ms).toISOString().split('T')[0];
-                                    liveEquityCurve[dateStr] = liveData.deposit_adjusted_series[i];
-                                });
+                            if (backtestData && backtestData.dvm_capital && backtestData.dvm_capital[symphony.id]) {
+                                const backtestTimeseries = backtestData.dvm_capital[symphony.id];
+                                const backtestEquityCurve = {};
+                                for (const dayKey in backtestTimeseries) {
+                                    const dateObj = new Date(1970, 0, 1);
+                                    dateObj.setDate(dateObj.getDate() + parseInt(dayKey) + 1);
+                                    const dateStr = dateObj.toISOString().split('T')[0];
+                                    backtestEquityCurve[dateStr] = backtestTimeseries[dayKey];
+                                }
 
-                                const liveWeeklyReturns = calculateWeeklyReturns(liveEquityCurve);
-
-                                if (liveWeeklyReturns.length > 0) {
-                                    const x = liveWeeklyReturns[liveWeeklyReturns.length - 1];
+                                const historicalReturns = calculateRollingReturns(backtestEquityCurve, liveDurationDays);
+                                if (historicalReturns.length > 0) {
+                                    const { mean: mu, stdDev: sigma } = calculateStatistics(historicalReturns);
                                     if (sigma > 0) {
                                         zScore = (x - mu) / sigma;
-                                        logStatus(`-> Z-Score for ${symphony.name}: ${zScore.toFixed(2)}`, 'success');
+                                        logStatus(`-> Z-Score for ${symphony.name}: ${zScore.toFixed(2)} (μ: ${(mu*100).toFixed(2)}%, σ: ${(sigma*100).toFixed(2)}%)`, 'success');
                                     } else {
-                                        logStatus(`Std Dev of backtest is zero for ${symphony.name}, cannot calculate Z-Score.`, 'warning');
+                                        logStatus(`Std Dev of historical returns is zero for ${symphony.name}. Cannot calculate Z-Score.`, 'warning');
                                     }
                                 } else {
-                                    logStatus(`Not enough live data to calculate recent weekly return for ${symphony.name}.`, 'warning');
+                                    logStatus(`Could not calculate any historical rolling returns for a duration of ${liveDurationDays} days.`, 'warning');
                                 }
                             } else {
-                                logStatus(`No live data available for ${symphony.name} to calculate Z-Score.`, 'warning');
+                                logStatus(`No backtest data available for ${symphony.name} to calculate Z-Score.`, 'warning');
                             }
                         } else {
-                            logStatus(`Not enough backtest data to calculate weekly returns for ${symphony.name}.`, 'warning');
+                            logStatus(`Live duration is zero or initial value is zero for ${symphony.name}. Cannot calculate Z-Score.`, 'warning');
                         }
                     } else {
-                        logStatus(`No backtest data available for ${symphony.name} to calculate Z-Score.`, 'warning');
+                        logStatus(`Not enough live data to calculate duration and return for ${symphony.name}.`, 'warning');
+
                     }
 
                     if (zScore !== null) {
@@ -744,17 +750,18 @@
                 list.className = 'space-y-2';
                 zScoreData.forEach(item => {
                     const listItem = document.createElement('li');
-                    listItem.className = 'flex justify-between items-center p-2 rounded-md';
-                    const sign = item.zScore > 0 ? '+' : '';
+                    listItem.className = 'flex justify-between items-center p-2 rounded-md bg-gray-100 dark:bg-gray-700';
+                    const sign = item.zScore >= 0 ? '+' : '';
+                    const zScoreColor = item.zScore >= 0 ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400';
                     listItem.innerHTML = `
                         <span class="font-medium">${item.name}</span>
-                        <span class="font-mono text-sm">${sign}${item.zScore.toFixed(2)}</span>
+                        <span class="font-mono text-sm font-semibold ${zScoreColor}">${sign}${item.zScore.toFixed(2)}</span>
                     `;
                     list.appendChild(listItem);
                 });
                 zScoreRankingDiv.appendChild(list);
             } else {
-                zScoreRankingDiv.innerHTML = '<p class="text-sm text-gray-500">No Z-Score data could be calculated.</p>';
+                zScoreRankingDiv.innerHTML = '<p class="text-sm text-gray-500">No Z-Score data could be calculated. Check logs for details.</p>';
             }
 
 

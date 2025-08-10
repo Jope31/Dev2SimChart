@@ -15,18 +15,64 @@
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
     <style>
-        /* Custom styles */
+        :root {
+            --color-bg-primary: #ffffff;
+            --color-bg-secondary: #f3f4f6;
+            --color-bg-tertiary: #ffffff;
+            --color-text-primary: #1f2937;
+            --color-text-secondary: #4b5563;
+            --color-text-muted: #6b7280;
+            --color-border: #e5e7eb;
+            --color-input-bg: #ffffff;
+            --color-input-text: #111827;
+            --color-input-border: #d1d5db;
+            --color-button-primary-bg: #4f46e5;
+            --color-button-primary-text: #ffffff;
+            --color-button-secondary-bg: #e5e7eb;
+            --color-button-secondary-text: #1f2937;
+            --color-focus-ring: #4f46e5;
+            --color-loader-bg: #f3f3f3;
+            --color-loader-fg: #3498db;
+            --color-shadow: rgba(0, 0, 0, 0.1);
+        }
+
+        .dark {
+            --color-bg-primary: #36393f;
+            --color-bg-secondary: #2f3136;
+            --color-bg-tertiary: #202225;
+            --color-text-primary: #dcddde;
+            --color-text-secondary: #b9bbbe;
+            --color-text-muted: #72767d;
+            --color-border: #202225;
+            --color-input-bg: #40444b;
+            --color-input-text: #dcddde;
+            --color-input-border: #202225;
+            --color-button-primary-bg: #5865f2;
+            --color-button-primary-text: #ffffff;
+            --color-button-secondary-bg: #40444b;
+            --color-button-secondary-text: #dcddde;
+            --color-focus-ring: #5865f2;
+            --color-loader-bg: #40444b;
+            --color-loader-fg: #5865f2;
+            --color-shadow: rgba(0, 0, 0, 0.2);
+        }
+
+        /* General styles */
         body {
             font-family: 'Inter', sans-serif;
-            background-color: #f3f4f6; /* A light gray background */
+            background-color: var(--color-bg-secondary);
+            color: var(--color-text-primary);
+            transition: background-color 0.3s, color 0.3s;
         }
         .container {
             max-width: 1200px;
+            background-color: var(--color-bg-primary);
+            box-shadow: 0 10px 15px -3px var(--color-shadow), 0 4px 6px -2px var(--color-shadow);
         }
         /* Style for the loading spinner */
         .loader {
-            border: 4px solid #f3f3f3;
-            border-top: 4px solid #3498db;
+            border: 4px solid var(--color-loader-bg);
+            border-top: 4px solid var(--color-loader-fg);
             border-radius: 50%;
             width: 40px;
             height: 40px;
@@ -36,15 +82,72 @@
             0% { transform: rotate(0deg); }
             100% { transform: rotate(360deg); }
         }
+
+        /* Update components to use CSS variables */
+        h1, h2 { color: var(--color-text-primary); }
+        p, label { color: var(--color-text-secondary); }
+        header { border-bottom-color: var(--color-border); }
+        input, textarea {
+            background-color: var(--color-input-bg);
+            color: var(--color-input-text);
+            border-color: var(--color-input-border);
+        }
+        input:focus, textarea:focus {
+            --tw-ring-color: var(--color-focus-ring);
+            border-color: var(--color-focus-ring);
+        }
+        #fetchButton {
+            background-color: var(--color-button-primary-bg);
+            color: var(--color-button-primary-text);
+        }
+        #fetchButton:hover { filter: brightness(1.1); }
+        #downloadChartBtn {
+            background-color: var(--color-button-secondary-bg);
+            color: var(--color-button-secondary-text);
+            border: 1px solid var(--color-border);
+        }
+        #downloadChartBtn:hover { filter: brightness(1.1); }
+        #statusLog {
+            background-color: var(--color-bg-secondary);
+            border-color: var(--color-border);
+            color: var(--color-text-muted);
+        }
+        .dark #statusLog .text-green-600 { color: #43b581; }
+        .dark #statusLog .text-red-600 { color: #f04747; }
+        .dark #statusLog .text-yellow-600 { color: #faa61a; }
+        .dark #statusLog .text-gray-600 { color: var(--color-text-muted); }
+
+        #theme-toggle svg { transition: color 0.3s; }
+        #theme-toggle:focus { --tw-ring-color: var(--color-focus-ring); }
+        .dark #theme-icon-light { color: var(--color-text-secondary); }
+        .dark #theme-icon-dark { color: var(--color-text-secondary); }
+
+        #performanceChartContainer {
+            background-color: var(--color-bg-primary);
+            box-shadow: 0 4px 6px -1px var(--color-shadow), 0 2px 4px -1px var(--color-shadow);
+        }
+
     </style>
 </head>
-<body class="bg-gray-100 text-gray-800 p-4 sm:p-6 md:p-8">
+<body class="p-4 sm:p-6 md:p-8">
 
-    <div class="container mx-auto bg-white p-6 rounded-2xl shadow-lg">
+    <div class="container mx-auto p-6 rounded-2xl">
 
-        <header class="mb-8 border-b pb-4">
-            <h1 class="text-3xl font-bold text-gray-900">Composer Data Charting Tool</h1>
-            <p class="text-md text-gray-600 mt-1">Visualize live and backtest performance for your symphonies.</p>
+        <header class="mb-8 border-b pb-4 flex justify-between items-center">
+            <div>
+                <h1 class="text-3xl font-bold">Composer Data Charting Tool</h1>
+                <p class="text-md mt-1">Visualize live and backtest performance for your symphonies.</p>
+            </div>
+            <div>
+                <button id="theme-toggle" class="p-2 rounded-full focus:outline-none focus:ring-2 focus:ring-offset-2">
+                    <svg id="theme-icon-light" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z" />
+                    </svg>
+                    <svg id="theme-icon-dark" class="h-6 w-6 hidden" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z" />
+                    </svg>
+                </button>
+            </div>
         </header>
 
         <!-- Input Section -->
@@ -52,22 +155,22 @@
             <!-- Credentials and Symphonies -->
             <div class="space-y-4">
                 <div>
-                    <label for="apiKey" class="block text-sm font-medium text-gray-700">API Key</label>
-                    <input type="password" id="apiKey" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm" placeholder="Enter your API Key">
+                    <label for="apiKey" class="block text-sm font-medium">API Key</label>
+                    <input type="password" id="apiKey" class="mt-1 block w-full rounded-md shadow-sm sm:text-sm" placeholder="Enter your API Key">
                 </div>
                 <div>
-                    <label for="secretKey" class="block text-sm font-medium text-gray-700">Secret Key</label>
-                    <input type="password" id="secretKey" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm" placeholder="Enter your Secret Key">
+                    <label for="secretKey" class="block text-sm font-medium">Secret Key</label>
+                    <input type="password" id="secretKey" class="mt-1 block w-full rounded-md shadow-sm sm:text-sm" placeholder="Enter your Secret Key">
                 </div>
                 <div>
-                    <label for="accountId" class="block text-sm font-medium text-gray-700">Account ID</label>
-                    <input type="text" id="accountId" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm" placeholder="Enter your Account ID">
+                    <label for="accountId" class="block text-sm font-medium">Account ID</label>
+                    <input type="text" id="accountId" class="mt-1 block w-full rounded-md shadow-sm sm:text-sm" placeholder="Enter your Account ID">
                 </div>
                 <div>
-                    <label for="symphonies" class="block text-sm font-medium text-gray-700">Symphonies (Name,ID,YYYY-MM-DD)</label>
-                    <textarea id="symphonies" rows="5" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm" placeholder="One symphony per line, e.g.&#10;My Awesome Symphony,FTZP9wjzjvnIw21KQtIL,2025-08-01&#10;Another Symphony,anotherSymphonyID,2025-07-15"></textarea>
+                    <label for="symphonies" class="block text-sm font-medium">Symphonies (Name,ID,YYYY-MM-DD)</label>
+                    <textarea id="symphonies" rows="5" class="mt-1 block w-full rounded-md shadow-sm sm:text-sm" placeholder="One symphony per line, e.g.&#10;My Awesome Symphony,FTZP9wjzjvnIw21KQtIL,2025-08-01&#10;Another Symphony,anotherSymphonyID,2025-07-15"></textarea>
                 </div>
-                <button id="fetchButton" class="w-full bg-indigo-600 text-white font-bold py-2 px-4 rounded-lg hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 transition duration-150 ease-in-out flex items-center justify-center">
+                <button id="fetchButton" class="w-full text-white font-bold py-2 px-4 rounded-lg focus:outline-none focus:ring-2 focus:ring-offset-2 transition duration-150 ease-in-out flex items-center justify-center">
                     <span id="buttonText">Fetch and Chart Data</span>
                     <div id="loader" class="loader hidden ml-3"></div>
                 </button>
@@ -75,8 +178,8 @@
 
             <!-- Status Log -->
             <div>
-                <label class="block text-sm font-medium text-gray-700">Status Log</label>
-                <div id="statusLog" class="mt-1 h-80 bg-gray-50 p-3 rounded-md border border-gray-300 overflow-y-auto text-xs font-mono">
+                <label class="block text-sm font-medium">Status Log</label>
+                <div id="statusLog" class="mt-1 h-80 p-3 rounded-md border overflow-y-auto text-xs font-mono">
                     Welcome! Please enter your credentials and symphonies to begin.
                 </div>
             </div>
@@ -86,11 +189,11 @@
         <div class="mt-8">
             <div class="flex justify-between items-center mb-4">
                 <h2 class="text-xl font-semibold">Performance Chart</h2>
-                <button id="downloadChartBtn" class="bg-gray-200 text-gray-700 font-semibold py-2 px-4 rounded-lg hover:bg-gray-300 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-400 transition duration-150 ease-in-out text-sm">
+                <button id="downloadChartBtn" class="font-semibold py-2 px-4 rounded-lg focus:outline-none focus:ring-2 focus:ring-offset-2 transition duration-150 ease-in-out text-sm">
                     Download PNG
                 </button>
             </div>
-            <div class="bg-white p-4 rounded-lg shadow">
+            <div id="performanceChartContainer" class="p-4 rounded-lg">
                 <canvas id="performanceChart"></canvas>
             </div>
         </div>
@@ -108,7 +211,151 @@
         const statusLog = document.getElementById('statusLog');
         const chartCanvas = document.getElementById('performanceChart');
         const downloadChartBtn = document.getElementById('downloadChartBtn');
+        const themeToggle = document.getElementById('theme-toggle');
+        const themeIconLight = document.getElementById('theme-icon-light');
+        const themeIconDark = document.getElementById('theme-icon-dark');
         let performanceChart; // To hold the chart instance
+
+        // --- Theme Management ---
+        const DARK_THEME = 'dark';
+        const LIGHT_THEME = 'light';
+
+        /**
+         * Applies the selected theme.
+         * @param {string} theme - The theme to apply ('dark' or 'light').
+         */
+        function applyTheme(theme) {
+            if (theme === DARK_THEME) {
+                document.documentElement.classList.add(DARK_THEME);
+                themeIconLight.classList.add('hidden');
+                themeIconDark.classList.remove('hidden');
+            } else {
+                document.documentElement.classList.remove(DARK_THEME);
+                themeIconLight.classList.remove('hidden');
+                themeIconDark.classList.add('hidden');
+            }
+            // If a chart exists, update its colors
+            if (performanceChart) {
+                updateChartTheme();
+            }
+        }
+
+        /**
+         * Toggles the current theme and saves the preference.
+         */
+        function toggleTheme() {
+            const currentTheme = localStorage.getItem('theme') || (window.matchMedia('(prefers-color-scheme: dark)').matches ? DARK_THEME : LIGHT_THEME);
+            const newTheme = currentTheme === DARK_THEME ? LIGHT_THEME : DARK_THEME;
+            localStorage.setItem('theme', newTheme);
+            applyTheme(newTheme);
+        }
+
+        /**
+         * Returns Chart.js options object based on the current theme.
+         */
+        function getChartOptions() {
+            const styles = getComputedStyle(document.documentElement);
+            const textColor = styles.getPropertyValue('--color-text-primary').trim();
+            const mutedTextColor = styles.getPropertyValue('--color-text-muted').trim();
+            const gridColor = styles.getPropertyValue('--color-border').trim();
+            const chartBackgroundColor = styles.getPropertyValue('--color-bg-primary').trim();
+
+            return {
+                responsive: true,
+                plugins: {
+                    customCanvasBackgroundColor: {
+                        color: chartBackgroundColor
+                    },
+                    legend: {
+                        position: 'top',
+                        labels: {
+                            color: textColor,
+                        }
+                    },
+                    title: {
+                        display: true,
+                        text: 'Symphony Performance: Live vs. Backtest',
+                        color: textColor
+                    },
+                    tooltip: {
+                        backgroundColor: styles.getPropertyValue('--color-bg-tertiary').trim(),
+                        titleColor: textColor,
+                        bodyColor: textColor,
+                        callbacks: {
+                            label: function(context) {
+                                let label = context.dataset.label || '';
+                                if (label) {
+                                    label += ': ';
+                                }
+                                if (context.parsed.y !== null) {
+                                    label += context.parsed.y.toFixed(2) + '%';
+                                }
+                                return label;
+                            }
+                        }
+                    }
+                },
+                scales: {
+                    x: {
+                        type: 'time',
+                        time: {
+                            unit: 'day',
+                            tooltipFormat: 'MMM d, yyyy'
+                        },
+                        title: {
+                            display: true,
+                            text: 'Date',
+                            color: mutedTextColor
+                        },
+                        grid: {
+                            color: gridColor,
+                        },
+                        ticks: {
+                            color: mutedTextColor,
+                        }
+                    },
+                    y: {
+                        title: {
+                            display: true,
+                            text: 'Return (%)',
+                            color: mutedTextColor
+                        },
+                        grid: {
+                            color: gridColor,
+                        },
+                        ticks: {
+                            color: mutedTextColor,
+                            callback: function(value) {
+                                return value + '%';
+                            }
+                        }
+                    }
+                }
+            };
+        }
+
+        /**
+         * Updates the chart's theme.
+         */
+        function updateChartTheme() {
+            if (!performanceChart) return;
+            performanceChart.options = getChartOptions();
+            performanceChart.update();
+        }
+
+        // --- Initial Theme Setup ---
+        // On page load, apply the saved theme or the user's OS preference
+        const savedTheme = localStorage.getItem('theme');
+        if (savedTheme) {
+            applyTheme(savedTheme);
+        } else {
+            // If no theme is saved, check the OS preference
+            if (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches) {
+                applyTheme(DARK_THEME);
+            } else {
+                applyTheme(LIGHT_THEME);
+            }
+        }
 
         // --- Color Palette ---
         // Pairs of dark/light colors for the charts.
@@ -422,81 +669,23 @@
                     performanceChart.destroy(); // Clear previous chart
                 }
 
-                // Define a plugin to draw a background color before the chart is rendered
-                const customCanvasBackgroundColor = {
-                    id: 'customCanvasBackgroundColor',
-                    beforeDraw: (chart, args, options) => {
-                        const {ctx} = chart;
-                        ctx.save();
-                        ctx.globalCompositeOperation = 'destination-over';
-                        ctx.fillStyle = options.color || '#ffffff';
-                        ctx.fillRect(0, 0, chart.width, chart.height);
-                        ctx.restore();
-                    }
-                };
-
                 performanceChart = new Chart(chartCanvas, {
                     type: 'line',
                     data: {
-                        // labels: allDates, // No longer needed for time scale
                         datasets: datasets
                     },
-                    options: {
-                        responsive: true,
-                        plugins: {
-                            // Configure the custom plugin
-                            customCanvasBackgroundColor: {
-                                color: 'white'
-                            },
-                            legend: {
-                                position: 'top',
-                            },
-                            title: {
-                                display: true,
-                                text: 'Symphony Performance: Live vs. Backtest'
-                            },
-                            tooltip: {
-                                callbacks: {
-                                    label: function(context) {
-                                        let label = context.dataset.label || '';
-                                        if (label) {
-                                            label += ': ';
-                                        }
-                                        if (context.parsed.y !== null) {
-                                            label += context.parsed.y.toFixed(2) + '%';
-                                        }
-                                        return label;
-                                    }
-                                }
-                            }
-                        },
-                        scales: {
-                            x: {
-                                type: 'time',
-                                time: {
-                                    unit: 'day',
-                                    tooltipFormat: 'MMM d, yyyy' // e.g., Aug 9, 2025
-                                },
-                                title: {
-                                    display: true,
-                                    text: 'Date'
-                                }
-                            },
-                            y: {
-                                title: {
-                                    display: true,
-                                    text: 'Return (%)'
-                                },
-                                ticks: {
-                                    callback: function(value) {
-                                        return value + '%';
-                                    }
-                                }
-                            }
+                    options: getChartOptions(),
+                    plugins: [{
+                        id: 'customCanvasBackgroundColor',
+                        beforeDraw: (chart, args, options) => {
+                            const {ctx} = chart;
+                            ctx.save();
+                            ctx.globalCompositeOperation = 'destination-over';
+                            ctx.fillStyle = chart.options.plugins.customCanvasBackgroundColor.color || '#ffffff';
+                            ctx.fillRect(0, 0, chart.width, chart.height);
+                            ctx.restore();
                         }
-                    },
-                    // Register the plugin globally for this chart instance
-                    plugins: [customCanvasBackgroundColor]
+                    }]
                 });
                 logStatus('Chart rendered successfully!', 'success');
             } else {
@@ -538,6 +727,7 @@
         // --- Event Listeners ---
         fetchButton.addEventListener('click', handleFetchAndChart);
         downloadChartBtn.addEventListener('click', handleDownloadChart);
+        themeToggle.addEventListener('click', toggleTheme);
 
     </script>
 

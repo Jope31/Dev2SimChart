@@ -108,6 +108,49 @@
         const downloadChartBtn = document.getElementById('downloadChartBtn');
         let performanceChart; // To hold the chart instance
 
+        // --- Color Palette ---
+        // Pairs of dark/light colors for the charts.
+        const colorPairs = [
+            { dark: '#d62728', light: '#ff9896' }, // Red
+            { dark: '#1f77b4', light: '#aec7e8' }, // Blue
+            { dark: '#2ca02c', light: '#98df8a' }, // Green
+            { dark: '#9467bd', light: '#c5b0d5' }, // Purple
+            { dark: '#ff7f0e', light: '#ffbb78' }, // Orange
+            { dark: '#8c564b', light: '#c49c94' }, // Brown
+            { dark: '#e377c2', light: '#f7b6d2' }, // Pink
+            { dark: '#7f7f7f', light: '#c7c7c7' }, // Gray
+            { dark: '#bcbd22', light: '#dbdb8d' }, // Olive
+            { dark: '#17becf', light: '#9edae5' }, // Cyan
+            { dark: '#8B0000', light: '#E06666' }, // Dark Red
+            { dark: '#000080', light: '#6666E0' }, // Navy
+            { dark: '#32CD32', light: '#98FB98' }, // Lime
+            { dark: '#800000', light: '#E08080' }, // Maroon
+            { dark: '#FFD700', light: '#FFFACD' }, // Gold
+            { dark: '#4B0082', light: '#B380E8' }, // Indigo
+            { dark: '#FF7F50', light: '#FFA07A' }, // Coral
+            { dark: '#40E0D0', light: '#AFEEEE' }, // Turquoise
+            { dark: '#EE82EE', light: '#F5C2F5' }, // Violet
+            { dark: '#F0E68C', light: '#FFFACD' }  // Khaki
+        ];
+
+        /**
+         * Converts a HEX color to an RGBA string.
+         * @param {string} hex - The hex color code (e.g., '#RRGGBB').
+         * @param {number} alpha - The alpha transparency (0-1).
+         * @returns {string} The RGBA color string.
+         */
+        function hexToRgba(hex, alpha = 1) {
+            if (!/^#([A-Fa-f0-9]{3}){1,2}$/.test(hex)) {
+                return 'rgba(0,0,0,0)'; // Invalid hex
+            }
+            let c = hex.substring(1).split('');
+            if (c.length === 3) {
+                c = [c[0], c[0], c[1], c[1], c[2], c[2]];
+            }
+            c = '0x' + c.join('');
+            return `rgba(${[(c>>16)&255, (c>>8)&255, c&255].join(',')},${alpha})`;
+        }
+
         // --- API Base URLs ---
         // Using a CORS proxy to bypass browser security restrictions for local development.
         // You may need to visit the proxy URL and click a button to activate it for your session.
@@ -330,13 +373,15 @@
                 const allDates = [...new Set(allChartData.flatMap(d => Object.keys(d.data)))].sort();
                 const datasets = [];
 
-                allChartData.forEach(({ name, data }) => {
+                allChartData.forEach(({ name, data }, index) => {
+                    const color = colorPairs[index % colorPairs.length];
+
                     // Live Data Series
                     datasets.push({
                         label: `${name} - Live`,
                         data: allDates.map(date => data[date] ? data[date].live_pct * 100 : null),
-                        borderColor: 'blue',
-                        backgroundColor: 'rgba(0, 0, 255, 0.1)',
+                        borderColor: color.dark,
+                        backgroundColor: hexToRgba(color.dark, 0.1),
                         borderWidth: 2,
                         fill: false,
                         tension: 0.1,
@@ -347,8 +392,8 @@
                     datasets.push({
                         label: `${name} - Backtest`,
                         data: allDates.map(date => data[date] ? data[date].backtest_pct * 100 : null),
-                        borderColor: 'orange',
-                        backgroundColor: 'rgba(255, 165, 0, 0.1)',
+                        borderColor: color.light,
+                        backgroundColor: hexToRgba(color.light, 0.1),
                         borderWidth: 2,
                         fill: false,
                         tension: 0.1,

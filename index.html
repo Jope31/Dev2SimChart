@@ -698,16 +698,20 @@
                             logStatus(`Live duration for ${symphony.name}: ${liveDurationDays} days, Total Return: ${(x*100).toFixed(2)}%`);
 
                             if (backtestData && backtestData.dvm_capital && backtestData.dvm_capital[symphony.id]) {
+                                const liveStartDate = new Date(firstPoint.ms);
                                 const backtestTimeseries = backtestData.dvm_capital[symphony.id];
-                                const backtestEquityCurve = {};
+                                const historicalEquityCurve = {};
                                 for (const dayKey in backtestTimeseries) {
                                     const dateObj = new Date(1970, 0, 1);
                                     dateObj.setDate(dateObj.getDate() + parseInt(dayKey) + 1);
-                                    const dateStr = dateObj.toISOString().split('T')[0];
-                                    backtestEquityCurve[dateStr] = backtestTimeseries[dayKey];
+                                    // Only include backtest data from before the symphony went live
+                                    if (dateObj < liveStartDate) {
+                                        const dateStr = dateObj.toISOString().split('T')[0];
+                                        historicalEquityCurve[dateStr] = backtestTimeseries[dayKey];
+                                    }
                                 }
 
-                                const historicalReturns = calculateRollingReturns(backtestEquityCurve, liveDurationDays);
+                                const historicalReturns = calculateRollingReturns(historicalEquityCurve, liveDurationDays);
                                 if (historicalReturns.length > 0) {
                                     const { mean: mu, stdDev: sigma } = calculateStatistics(historicalReturns);
                                     if (sigma > 0) {

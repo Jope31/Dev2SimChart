@@ -197,6 +197,14 @@
                 <canvas id="performanceChart"></canvas>
             </div>
         </div>
+
+        <!-- Z-Score Ranking Section -->
+        <div class="mt-8">
+            <h2 class="text-xl font-semibold mb-4">Z-Score Ranking</h2>
+            <div id="zScoreRanking" class="p-4 rounded-lg bg-gray-50 dark:bg-gray-800">
+                <!-- Z-score results will be injected here -->
+            </div>
+        </div>
     </div>
 
     <script>
@@ -400,6 +408,57 @@
             return `rgba(${[(c>>16)&255, (c>>8)&255, c&255].join(',')},${alpha})`;
         }
 
+        /**
+         * Calculates the mean and standard deviation of an array of numbers.
+         * @param {number[]} data - Array of numbers.
+         * @returns {{mean: number, stdDev: number}}
+         */
+        function calculateStatistics(data) {
+            if (data.length === 0) return { mean: 0, stdDev: 0 };
+            const sum = data.reduce((acc, val) => acc + val, 0);
+            const mean = sum / data.length;
+            const variance = data.reduce((acc, val) => acc + Math.pow(val - mean, 2), 0) / data.length;
+            const stdDev = Math.sqrt(variance);
+            return { mean, stdDev };
+        }
+
+        /**
+         * Converts daily equity values to weekly percentage returns.
+         * @param {object} timeseries - Object with date strings as keys and equity values.
+         * @returns {number[]} - An array of weekly returns.
+         */
+        function calculateWeeklyReturns(timeseries) {
+            const sortedDates = Object.keys(timeseries).sort((a, b) => new Date(a) - new Date(b));
+            if (sortedDates.length < 2) return [];
+
+            const weeklyReturns = [];
+            let lastEquity = timeseries[sortedDates[0]];
+
+            for (let i = 1; i < sortedDates.length; i++) {
+                const currentDate = new Date(sortedDates[i]);
+                const previousDate = new Date(sortedDates[i-1]);
+
+                // Check if it's a new week (Sunday is 0, Saturday is 6)
+                const isNewWeek = currentDate.getDay() < previousDate.getDay() || (currentDate - previousDate) / (1000 * 60 * 60 * 24) >= 7;
+
+                if (isNewWeek && lastEquity !== 0) {
+                    const currentEquity = timeseries[sortedDates[i-1]];
+                    const weeklyReturn = (currentEquity / lastEquity) - 1;
+                    weeklyReturns.push(weeklyReturn);
+                    lastEquity = currentEquity;
+                }
+            }
+
+            // Add the final week's return
+            const finalEquity = timeseries[sortedDates[sortedDates.length - 1]];
+            if (lastEquity !== 0) {
+                const finalReturn = (finalEquity / lastEquity) - 1;
+                weeklyReturns.push(finalReturn);
+            }
+
+            return weeklyReturns;
+        }
+
         // --- API Base URLs ---
         // Using a CORS proxy to bypass browser security restrictions for local development.
         // You may need to visit the proxy URL and click a button to activate it for your session.
@@ -600,24 +659,106 @@
 
             // --- 3. Fetch and Process Data for all Symphonies ---
             const allChartData = [];
+            const zScoreData = [];
+
             for (const symphony of symphonyInputs) {
                 logStatus(`--- Processing Symphony: ${symphony.name} (${symphony.id}) ---`, 'info');
                 const liveData = await fetchLiveData(apiKey, secretKey, accountId, symphony.id);
                 const backtestData = await fetchBacktestData(apiKey, secretKey, symphony.id, symphony.startDate);
 
                 if (liveData || backtestData) {
+                    // Process for chart
                     const processedData = processAndMergeData(liveData, backtestData, symphony.id, symphony.startDate);
                     allChartData.push({
                         symphonyId: symphony.id,
                         name: symphony.name,
                         data: processedData
                     });
+
+                    // Z-Score Calculation
+                    logStatus(`Calculating Z-Score for ${symphony.name}...`);
+                    let zScore = null;
+
+                    if (backtestData && backtestData.dvm_capital && backtestData.dvm_capital[symphony.id]) {
+                        const backtestTimeseries = backtestData.dvm_capital[symphony.id];
+                        const backtestEquityCurve = {};
+                        for (const dayKey in backtestTimeseries) {
+                            const dateObj = new Date(1970, 0, 1);
+                            dateObj.setDate(dateObj.getDate() + parseInt(dayKey) + 1);
+                            const dateStr = dateObj.toISOString().split('T')[0];
+                            backtestEquityCurve[dateStr] = backtestTimeseries[dayKey];
+                        }
+
+                        const backtestWeeklyReturns = calculateWeeklyReturns(backtestEquityCurve);
+
+                        if (backtestWeeklyReturns.length > 0) {
+                            const { mean: mu, stdDev: sigma } = calculateStatistics(backtestWeeklyReturns);
+
+                            if (liveData && liveData.epoch_ms && liveData.deposit_adjusted_series) {
+                                const liveEquityCurve = {};
+                                liveData.epoch_ms.forEach((ms, i) => {
+                                    const dateStr = new Date(ms).toISOString().split('T')[0];
+                                    liveEquityCurve[dateStr] = liveData.deposit_adjusted_series[i];
+                                });
+
+                                const liveWeeklyReturns = calculateWeeklyReturns(liveEquityCurve);
+
+                                if (liveWeeklyReturns.length > 0) {
+                                    const x = liveWeeklyReturns[liveWeeklyReturns.length - 1];
+                                    if (sigma > 0) {
+                                        zScore = (x - mu) / sigma;
+                                        logStatus(`-> Z-Score for ${symphony.name}: ${zScore.toFixed(2)}`, 'success');
+                                    } else {
+                                        logStatus(`Std Dev of backtest is zero for ${symphony.name}, cannot calculate Z-Score.`, 'warning');
+                                    }
+                                } else {
+                                    logStatus(`Not enough live data to calculate recent weekly return for ${symphony.name}.`, 'warning');
+                                }
+                            } else {
+                                logStatus(`No live data available for ${symphony.name} to calculate Z-Score.`, 'warning');
+                            }
+                        } else {
+                            logStatus(`Not enough backtest data to calculate weekly returns for ${symphony.name}.`, 'warning');
+                        }
+                    } else {
+                        logStatus(`No backtest data available for ${symphony.name} to calculate Z-Score.`, 'warning');
+                    }
+
+                    if (zScore !== null) {
+                        zScoreData.push({ name: symphony.name, zScore: zScore });
+                    }
+
                 } else {
                     logStatus(`Could not fetch any data for ${symphony.id}. Skipping.`, 'warning');
                 }
             }
 
-            // --- 4. Prepare Data for Chart.js ---
+            // --- 4. Display Z-Score Rankings ---
+            const zScoreRankingDiv = document.getElementById('zScoreRanking');
+            zScoreRankingDiv.innerHTML = ''; // Clear previous results
+            if (zScoreData.length > 0) {
+                // Sort by absolute Z-score, least deviant to most deviant
+                zScoreData.sort((a, b) => Math.abs(a.zScore) - Math.abs(b.zScore));
+
+                const list = document.createElement('ul');
+                list.className = 'space-y-2';
+                zScoreData.forEach(item => {
+                    const listItem = document.createElement('li');
+                    listItem.className = 'flex justify-between items-center p-2 rounded-md';
+                    const sign = item.zScore > 0 ? '+' : '';
+                    listItem.innerHTML = `
+                        <span class="font-medium">${item.name}</span>
+                        <span class="font-mono text-sm">${sign}${item.zScore.toFixed(2)}</span>
+                    `;
+                    list.appendChild(listItem);
+                });
+                zScoreRankingDiv.appendChild(list);
+            } else {
+                zScoreRankingDiv.innerHTML = '<p class="text-sm text-gray-500">No Z-Score data could be calculated.</p>';
+            }
+
+
+            // --- 5. Prepare Data for Chart.js ---
             if (allChartData.length > 0) {
                 const datasets = [];
 

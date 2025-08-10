@@ -8,6 +8,8 @@
     <script src="https://cdn.tailwindcss.com"></script>
     <!-- Chart.js for graphing -->
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <!-- date-fns adapter for Chart.js time scale -->
+    <script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns@3.0.0/dist/chartjs-adapter-date-fns.bundle.min.js"></script>
     <!-- Inter font -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -370,16 +372,30 @@
 
             // --- 4. Prepare Data for Chart.js ---
             if (allChartData.length > 0) {
-                const allDates = [...new Set(allChartData.flatMap(d => Object.keys(d.data)))].sort();
                 const datasets = [];
 
                 allChartData.forEach(({ name, data }, index) => {
                     const color = colorPairs[index % colorPairs.length];
+                    const liveDataPoints = [];
+                    const backtestDataPoints = [];
+
+                    // Sort dates to ensure data points are in chronological order
+                    const sortedDates = Object.keys(data).sort();
+
+                    for (const date of sortedDates) {
+                        const point = data[date];
+                        if (point.live_pct !== undefined && point.live_pct !== null) {
+                            liveDataPoints.push({ x: date, y: point.live_pct * 100 });
+                        }
+                        if (point.backtest_pct !== undefined && point.backtest_pct !== null) {
+                            backtestDataPoints.push({ x: date, y: point.backtest_pct * 100 });
+                        }
+                    }
 
                     // Live Data Series
                     datasets.push({
                         label: `${name} - Live`,
-                        data: allDates.map(date => data[date] ? data[date].live_pct * 100 : null),
+                        data: liveDataPoints,
                         borderColor: color.dark,
                         backgroundColor: hexToRgba(color.dark, 0.1),
                         borderWidth: 2,
@@ -391,7 +407,7 @@
                     // Backtest Data Series
                     datasets.push({
                         label: `${name} - Backtest`,
-                        data: allDates.map(date => data[date] ? data[date].backtest_pct * 100 : null),
+                        data: backtestDataPoints,
                         borderColor: color.light,
                         backgroundColor: hexToRgba(color.light, 0.1),
                         borderWidth: 2,
@@ -422,7 +438,7 @@
                 performanceChart = new Chart(chartCanvas, {
                     type: 'line',
                     data: {
-                        labels: allDates,
+                        // labels: allDates, // No longer needed for time scale
                         datasets: datasets
                     },
                     options: {
@@ -456,6 +472,11 @@
                         },
                         scales: {
                             x: {
+                                type: 'time',
+                                time: {
+                                    unit: 'day',
+                                    tooltipFormat: 'MMM d, yyyy' // e.g., Aug 9, 2025
+                                },
                                 title: {
                                     display: true,
                                     text: 'Date'

@@ -200,7 +200,7 @@
 
         <!-- Z-Score Ranking Section -->
         <div class="mt-8">
-            <h2 class="text-xl font-semibold mb-4">Daily P&L Z-Score Ranking</h2>
+            <h2 class="text-xl font-semibold mb-4">Average P&L Z-Score Ranking</h2>
             <div id="zScoreRanking" class="p-4 rounded-lg bg-gray-50 dark:bg-gray-800">
                 <!-- Z-score results will be injected here -->
             </div>
@@ -706,46 +706,56 @@
                         data: processedData
                     });
 
-                    // Z-Score Calculation
+                    // Z-Score Calculation (New Method)
                     logStatus(`Calculating Z-Score for ${symphony.name}...`);
                     let zScore = null;
 
                     if (liveData && liveData.deposit_adjusted_series && liveData.deposit_adjusted_series.length >= 2) {
-                        const livePoints = liveData.epoch_ms.map((ms, i) => ({
-                            ms: ms,
-                            value: liveData.deposit_adjusted_series[i]
-                        })).sort((a, b) => a.ms - b.ms);
+                        // 1. Calculate Average Daily Live P&L
+                        const liveEquityCurve = {};
+                        liveData.epoch_ms.forEach((ms, i) => {
+                            const dateStr = new Date(ms).toISOString().split('T')[0];
+                            liveEquityCurve[dateStr] = liveData.deposit_adjusted_series[i];
+                        });
+                        const liveDailyPnls = calculateDailyPnl(liveEquityCurve);
+                        const { mean: avgLivePnl } = calculateStatistics(liveDailyPnls, 0);
+                        logStatus(`Average Daily Live P&L for ${symphony.name}: $${avgLivePnl.toFixed(2)}`);
 
-                        const latestLivePnl = livePoints[livePoints.length - 1].value - livePoints[livePoints.length - 2].value;
-                        logStatus(`Latest Live P&L for ${symphony.name}: $${latestLivePnl.toFixed(2)}`);
-
+                        // 2. Filter Backtest Data to match Live Period
                         if (backtestData && backtestData.dvm_capital && backtestData.dvm_capital[symphony.id]) {
+                            const liveSortedPoints = Object.keys(liveEquityCurve).sort();
+                            const investmentStartDate = liveSortedPoints[0];
+
                             const backtestTimeseries = backtestData.dvm_capital[symphony.id];
                             const backtestEquityCurve = {};
                             for (const dayKey in backtestTimeseries) {
                                 const dateObj = new Date(1970, 0, 1);
                                 dateObj.setDate(dateObj.getDate() + parseInt(dayKey) + 1);
                                 const dateStr = dateObj.toISOString().split('T')[0];
-                                backtestEquityCurve[dateStr] = backtestTimeseries[dayKey];
+                                // Filter backtest data to start from the investment date
+                                if (dateStr >= investmentStartDate) {
+                                    backtestEquityCurve[dateStr] = backtestTimeseries[dayKey];
+                                }
                             }
 
-                            const historicalDailyPnls = calculateDailyPnl(backtestEquityCurve);
+                            // 3. Calculate Stats on Filtered Backtest Data
+                            const backtestDailyPnls = calculateDailyPnl(backtestEquityCurve);
 
-                            if (historicalDailyPnls.length > 1) {
-                                const { mean: mu, stdDev: sigma } = calculateStatistics(historicalDailyPnls, 1); // Use ddof=1 for sample std dev
+                            if (backtestDailyPnls.length > 1) {
+                                const { mean: avgBacktestPnl, stdDev: sigma } = calculateStatistics(backtestDailyPnls, 1); // Use sample std dev
                                 if (sigma > 0) {
-                                    zScore = (latestLivePnl - mu) / sigma;
-                                    logStatus(`-> Z-Score (Daily P&L): ${zScore.toFixed(2)} (Live P&L: $${latestLivePnl.toFixed(2)}, μ: $${mu.toFixed(2)}, σ: $${sigma.toFixed(2)})`, 'success');
+                                    // 4. Calculate Z-Score with the new formula
+                                    zScore = (avgLivePnl - avgBacktestPnl) / sigma;
+                                    logStatus(`-> Z-Score (Avg. P&L): ${zScore.toFixed(2)} (Avg Live P&L: $${avgLivePnl.toFixed(2)}, Avg Backtest P&L: $${avgBacktestPnl.toFixed(2)}, σ: $${sigma.toFixed(2)})`, 'success');
                                 } else {
-                                    logStatus(`Std Dev of historical daily P&L is zero for ${symphony.name}. Cannot calculate Z-Score.`, 'warning');
+                                    logStatus(`Std Dev of backtest daily P&L is zero for ${symphony.name}. Cannot calculate Z-Score.`, 'warning');
                                 }
                             } else {
-                                logStatus(`Not enough historical data points to calculate Daily P&L stats for ${symphony.name}.`, 'warning');
+                                logStatus(`Not enough backtest data points in the live period to calculate stats for ${symphony.name}.`, 'warning');
                             }
                         } else {
                             logStatus(`No backtest data available for ${symphony.name} to calculate Z-Score.`, 'warning');
                         }
-
                     } else {
                         logStatus(`Not enough live data points for ${symphony.name} to calculate P&L.`, 'warning');
                     }

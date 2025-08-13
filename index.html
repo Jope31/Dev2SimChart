@@ -706,62 +706,71 @@
                         data: processedData
                     });
 
-                    // Z-Score Calculation (New Method)
+                    // Z-Score Calculation (Corrected Logic)
                     logStatus(`Calculating Z-Score for ${symphony.name}...`);
                     let zScore = null;
 
-                    if (liveData && liveData.deposit_adjusted_series && liveData.deposit_adjusted_series.length >= 2) {
-                        // 1. Calculate Average Daily Live P&L
-                        const liveEquityCurve = {};
+                    // 1. Create clean timeseries for both live and backtest data
+                    const liveValuesByDate = {};
+                    if (liveData && liveData.epoch_ms && liveData.deposit_adjusted_series) {
                         liveData.epoch_ms.forEach((ms, i) => {
                             const dateStr = new Date(ms).toISOString().split('T')[0];
-                            liveEquityCurve[dateStr] = liveData.deposit_adjusted_series[i];
+                            liveValuesByDate[dateStr] = liveData.deposit_adjusted_series[i];
                         });
-                        const liveDailyPnls = calculateDailyPnl(liveEquityCurve);
-                        const { mean: avgLivePnl } = calculateStatistics(liveDailyPnls, 0);
-                        logStatus(`Average Daily Live P&L for ${symphony.name}: $${avgLivePnl.toFixed(2)}`);
-
-                        // 2. Filter Backtest Data to match Live Period
-                        if (backtestData && backtestData.dvm_capital && backtestData.dvm_capital[symphony.id]) {
-                            const liveSortedPoints = Object.keys(liveEquityCurve).sort();
-                            const investmentStartDate = liveSortedPoints[0];
-
-                            const backtestTimeseries = backtestData.dvm_capital[symphony.id];
-                            const backtestEquityCurve = {};
-                            for (const dayKey in backtestTimeseries) {
-                                const dateObj = new Date(1970, 0, 1);
-                                dateObj.setDate(dateObj.getDate() + parseInt(dayKey) + 1);
-                                const dateStr = dateObj.toISOString().split('T')[0];
-                                // Filter backtest data to start from the investment date
-                                if (dateStr >= investmentStartDate) {
-                                    backtestEquityCurve[dateStr] = backtestTimeseries[dayKey];
-                                }
-                            }
-
-                            // 3. Calculate Stats on Filtered Backtest Data
-                            const backtestDailyPnls = calculateDailyPnl(backtestEquityCurve);
-
-                            if (backtestDailyPnls.length > 1) {
-                                const { mean: avgBacktestPnl, stdDev: sigma } = calculateStatistics(backtestDailyPnls, 1); // Use sample std dev
-                                if (sigma > 0) {
-                                    // 4. Calculate Z-Score with the new formula
-                                    zScore = (avgLivePnl - avgBacktestPnl) / sigma;
-                                    logStatus(`-> Z-Score (Avg. P&L): ${zScore.toFixed(2)} (Avg Live P&L: $${avgLivePnl.toFixed(2)}, Avg Backtest P&L: $${avgBacktestPnl.toFixed(2)}, σ: $${sigma.toFixed(2)})`, 'success');
-                                } else {
-                                    logStatus(`Std Dev of backtest daily P&L is zero for ${symphony.name}. Cannot calculate Z-Score.`, 'warning');
-                                }
-                            } else {
-                                logStatus(`Not enough backtest data points in the live period to calculate stats for ${symphony.name}.`, 'warning');
-                            }
-                        } else {
-                            logStatus(`No backtest data available for ${symphony.name} to calculate Z-Score.`, 'warning');
-                        }
-                    } else {
-                        logStatus(`Not enough live data points for ${symphony.name} to calculate P&L.`, 'warning');
                     }
 
-                    if (zScore !== null) {
-                        zScoreData.push({ name: symphony.name, zScore: zScore });
+                    const backtestValuesByDate = {};
+                    if (backtestData && backtestData.dvm_capital && backtestData.dvm_capital[symphony.id]) {
+                        const symphonyTimeseries = backtestData.dvm_capital[symphony.id];
+                        for (const dayKey in symphonyTimeseries) {
+                            const dateObj = new Date(1970, 0, 1);
+                            dateObj.setDate(dateObj.getDate() + parseInt(dayKey) + 1);
+                            const dateStr = dateObj.toISOString().split('T')[0];
+                            backtestValuesByDate[dateStr] = symphonyTimeseries[dayKey];
+                        }
+                    }
+
+                    // 2. Find common dates
+                    const commonDates = Object.keys(liveValuesByDate)
+                        .filter(date => backtestValuesByDate.hasOwnProperty(date))
+                        .sort();
+
+                    if (commonDates.length < 2) {
+                        logStatus(`Warning: Not enough overlapping data points (requires at least 2) for '${symphony.name}'. Skipping Z-Score.`, 'warning');
+                    } else {
+                        // 3. Get baselines from the first common day
+                        const firstDay = commonDates[0];
+                        const liveBaseline = liveValuesByDate[firstDay];
+                        const backtestBaseline = backtestValuesByDate[firstDay];
+
+                        if (liveBaseline === 0 || backtestBaseline === 0) {
+                            logStatus(`Warning: Baseline value is zero for '${symphony.name}'. Cannot calculate percentage returns. Skipping Z-Score.`, 'warning');
+                        } else {
+                            // 4. Calculate daily percentage returns and then the difference (tracking error)
+                            const dailyPctDifferences = [];
+                            for (const day of commonDates) {
+                                const liveReturn = (liveValuesByDate[day] / liveBaseline) - 1;
+                                const backtestReturn = (backtestValuesByDate[day] / backtestBaseline) - 1;
+                                dailyPctDifferences.push(liveReturn - backtestReturn);
+                            }
+
+                            // 5. Calculate Z-Score on the Percentage Tracking Error
+                            const n = dailyPctDifferences.length;
+                            const { mean: meanOfDifference, stdDev: stdDevOfDifference } = calculateStatistics(dailyPctDifferences, 1); // Use sample std dev (ddof=1)
+
+                            const standardError = n > 0 ? stdDevOfDifference / Math.sqrt(n) : 0;
+
+                            if (standardError === 0) {
+                                zScore = meanOfDifference !== 0 ? Infinity : 0;
+                            } else {
+                                zScore = meanOfDifference / standardError;
+                            }
+
+                            if (zScore !== null) {
+                                zScoreData.push({ name: symphony.name, zScore: zScore });
+                            }
+                            logStatus(`-> Z-Score (Tracking Error): ${zScore.toFixed(2)} (Mean Diff: ${(meanOfDifference*100).toFixed(4)}%, Std Dev: ${(stdDevOfDifference*100).toFixed(4)}%, N: ${n})`, 'success');
+                        }
                     }
 
                 } else {

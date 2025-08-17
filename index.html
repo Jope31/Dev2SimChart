@@ -223,6 +223,7 @@
         const themeIconLight = document.getElementById('theme-icon-light');
         const themeIconDark = document.getElementById('theme-icon-dark');
         let performanceChart; // To hold the chart instance
+        let zScoreCharts = []; // To hold accordion chart instances
         let allChartData = []; // To hold all processed chart data globally
         let zScoreData = [];   // To hold all z-score data globally
 
@@ -348,9 +349,20 @@
          * Updates the chart's theme.
          */
         function updateChartTheme() {
-            if (!performanceChart) return;
-            performanceChart.options = getChartOptions();
-            performanceChart.update();
+            const newOptions = getChartOptions();
+            if (performanceChart) {
+                performanceChart.options = newOptions;
+                performanceChart.update();
+            }
+            zScoreCharts.forEach(chart => {
+                // We need to create a deep copy of the options, because Chart.js modifies the options object.
+                // A simple structuredClone is sufficient here.
+                const individualOptions = structuredClone(newOptions);
+                // We also need to preserve the individual title of each chart.
+                individualOptions.plugins.title.text = chart.options.plugins.title.text;
+                chart.options = individualOptions;
+                chart.update();
+            });
         }
 
         // --- Initial Theme Setup ---
@@ -691,6 +703,10 @@
             logStatus(`Starting process for ${symphonyInputs.length} symphonies...`, 'info');
 
             // --- 3. Fetch and Process Data for all Symphonies ---
+            // Clear old chart instances to prevent memory leaks
+            zScoreCharts.forEach(chart => chart.destroy());
+            zScoreCharts = [];
+
             allChartData = []; // Clear previous data
             zScoreData = [];   // Clear previous data
 
@@ -1005,11 +1021,12 @@
             const chartOptions = getChartOptions();
             chartOptions.plugins.title.text = `${symphonyData.name}: Live vs. Backtest`;
 
-            new Chart(canvas, {
+            const newChart = new Chart(canvas, {
                 type: 'line',
                 data: { datasets: datasets },
                 options: chartOptions
             });
+            zScoreCharts.push(newChart);
         }
 
         // --- Event Listeners ---

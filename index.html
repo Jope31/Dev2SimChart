@@ -816,7 +816,7 @@
 
                 zScoreData.forEach((item, index) => {
                     const wrapper = document.createElement('div');
-                    wrapper.className = 'bg-gray-100 dark:bg-gray-700 rounded-md';
+                    wrapper.className = 'bg-gray-700 rounded-md';
 
                     const header = document.createElement('div');
                     // Add a data attribute to store the index for the click handler
@@ -824,10 +824,10 @@
                     header.className = 'flex justify-between items-center p-3 cursor-pointer';
 
                     const sign = item.zScore >= 0 ? '+' : '';
-                    const zScoreColor = item.zScore >= 0 ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400';
+                    const zScoreColor = item.zScore >= 0 ? 'text-green-400' : 'text-red-400';
 
                     header.innerHTML = `
-                        <span class="font-medium">${item.name}</span>
+                        <span class="font-medium text-white">${item.name}</span>
                         <span class="font-mono text-sm font-semibold ${zScoreColor}">${sign}${item.zScore.toFixed(2)}</span>
                     `;
 

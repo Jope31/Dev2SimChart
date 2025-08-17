@@ -819,8 +819,8 @@
                     wrapper.className = 'bg-gray-700 rounded-md';
 
                     const header = document.createElement('div');
-                    // Add a data attribute to store the index for the click handler
-                    header.setAttribute('data-index', index);
+                    // Use the symphony name as a stable identifier
+                    header.setAttribute('data-symphony-name', item.name);
                     header.className = 'flex justify-between items-center p-3 cursor-pointer';
 
                     const sign = item.zScore >= 0 ? '+' : '';
@@ -832,8 +832,9 @@
                     `;
 
                     const chartContainer = document.createElement('div');
-                    // Unique ID for the chart's parent container
-                    chartContainer.id = `z-chart-container-${index}`;
+                    // Create a sanitized, unique ID for the chart's parent container
+                    const sanitizedName = item.name.replace(/[^a-zA-Z0-9]/g, '');
+                    chartContainer.id = `z-chart-container-${sanitizedName}-${index}`;
                     // Hide it by default
                     chartContainer.className = 'p-4 border-t border-gray-200 dark:border-gray-600 hidden';
 
@@ -960,11 +961,19 @@
          * @param {Event} event - The click event.
          */
         function handleZScoreClick(event) {
-            const header = event.target.closest('[data-index]');
+            const header = event.target.closest('[data-symphony-name]');
             if (!header) return; // Click was not on a header
 
-            const index = header.dataset.index;
-            const chartContainer = document.getElementById(`z-chart-container-${index}`);
+            const symphonyName = header.dataset.symphonyName;
+
+            // Find the index from the globally available sorted zScoreData array to reconstruct the ID
+            const zScoreIndex = zScoreData.findIndex(item => item.name === symphonyName);
+            if (zScoreIndex === -1) return; // Should not happen if data is consistent
+
+            const sanitizedName = symphonyName.replace(/[^a-zA-Z0-9]/g, '');
+            const chartContainerId = `z-chart-container-${sanitizedName}-${zScoreIndex}`;
+            const chartContainer = document.getElementById(chartContainerId);
+
 
             if (!chartContainer) return;
 
@@ -973,24 +982,29 @@
 
             // If the container is now visible and has no chart, create one.
             if (!isHidden && chartContainer.childElementCount === 0) {
-                createIndividualChart(index, chartContainer);
+                // Pass the stable symphony name, not the volatile index
+                createIndividualChart(symphonyName, chartContainer);
             }
         }
 
         /**
          * Creates and renders an individual chart within a Z-score accordion.
-         * @param {string} index - The index of the symphony in the allChartData array.
+         * @param {string} symphonyName - The name of the symphony to chart.
          * @param {HTMLElement} container - The container element to render the chart in.
          */
-        function createIndividualChart(index, container) {
-            const symphonyData = allChartData[index];
+        function createIndividualChart(symphonyName, container) {
+            // Find the symphony data by name from the original, unsorted array
+            const symphonyData = allChartData.find(d => d.name === symphonyName);
             if (!symphonyData) return;
+
+            // Find the original index to maintain consistent coloring
+            const originalIndex = allChartData.findIndex(d => d.name === symphonyName);
 
             // Create a canvas element for the new chart
             const canvas = document.createElement('canvas');
             container.appendChild(canvas);
 
-            const color = colorPairs[index % colorPairs.length];
+            const color = colorPairs[originalIndex % colorPairs.length];
             const liveDataPoints = [];
             const backtestDataPoints = [];
 

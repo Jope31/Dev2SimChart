@@ -245,9 +245,16 @@
                 themeIconLight.classList.remove('hidden');
                 themeIconDark.classList.add('hidden');
             }
-            // If a chart exists, update its colors
-            if (performanceChart) {
-                updateChartTheme();
+            // Update chart colors
+            updateChartTheme();
+
+            // Also explicitly update the z-score ranking container background
+            const zScoreRankingDiv = document.getElementById('zScoreRanking');
+            const styles = getComputedStyle(document.documentElement);
+            if (theme === DARK_THEME) {
+                zScoreRankingDiv.style.backgroundColor = styles.getPropertyValue('--color-bg-tertiary').trim();
+            } else {
+                zScoreRankingDiv.style.backgroundColor = styles.getPropertyValue('--color-bg-secondary').trim();
             }
         }
 
@@ -259,6 +266,7 @@
             const newTheme = currentTheme === DARK_THEME ? LIGHT_THEME : DARK_THEME;
             localStorage.setItem('theme', newTheme);
             applyTheme(newTheme);
+            updateChartTheme();
         }
 
         /**
@@ -803,9 +811,6 @@
                 // Sort by absolute Z-score, least deviant to most deviant
                 zScoreData.sort((a, b) => Math.abs(a.zScore) - Math.abs(b.zScore));
 
-                // Sort by absolute Z-score, least deviant to most deviant
-                zScoreData.sort((a, b) => Math.abs(a.zScore) - Math.abs(b.zScore));
-
                 const container = document.createElement('div');
                 container.className = 'space-y-2';
 
@@ -1024,7 +1029,18 @@
             const newChart = new Chart(canvas, {
                 type: 'line',
                 data: { datasets: datasets },
-                options: chartOptions
+                options: chartOptions,
+                plugins: [{
+                    id: 'customCanvasBackgroundColor',
+                    beforeDraw: (chart, args, options) => {
+                        const {ctx} = chart;
+                        ctx.save();
+                        ctx.globalCompositeOperation = 'destination-over';
+                        ctx.fillStyle = chart.options.plugins.customCanvasBackgroundColor.color || '#ffffff';
+                        ctx.fillRect(0, 0, chart.width, chart.height);
+                        ctx.restore();
+                    }
+                }]
             });
             zScoreCharts.push(newChart);
         }
